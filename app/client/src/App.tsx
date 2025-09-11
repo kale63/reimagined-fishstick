@@ -1,18 +1,23 @@
 // App.tsx
 import { Routes, Route, Link } from "react-router-dom";
 import Home from "./views/home";
+import Login from "./views/login";
+import Signup from "./views/signup";
+import { useState } from "react";
 
 function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(true); // Set to true for development to see the dashboard
+  
   return (
-    <div className="min-h-screen bg-gradient-to-r from-indigo-500 to-purple-500 text-white">
-      <nav className="p-4 flex gap-4">
-        <Link to="/" className="hover:underline">Home</Link>
-        <Link to="/about" className="hover:underline">About</Link>
-      </nav>
-
-      <Routes>
-        <Route path="/" element={<Home />} />
-      </Routes>
+    <div className="bg-gray-50">
+      <main>
+        <Routes>
+          {/* <Route path="/" element={isLoggedIn ? <Home /> : <Login />} /> */}
+          <Route path="/home" element={<Home />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+        </Routes>
+      </main>
     </div>
   );
 }
