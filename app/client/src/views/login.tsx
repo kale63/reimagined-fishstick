@@ -8,15 +8,15 @@ export default function Login() {
       <div className="text-center">
         <div className="flex justify-center items-center space-x-3">
           <img src={docCollabLogo} alt="DocCollab Logo" className="h-12 w-auto" />
-          <h1 className="text-3xl font-bold text-gray-900">DocCollab</h1>
+          <h2 className="text-3xl font-bold text-gray-900">Bienvenido a DocCollab</h2>
         </div>
-        <h2 className="mt-4 text-lg text-gray-600">Crear una nueva cuenta</h2>
+        <h3 className="mt-4 text-lg text-gray-600 mb-8">Inicia sesión para acceder a tus documentos colaborativos</h3>
       </div>
 
 
       {/* Login Form */}
       <div className="max-w-md mx-auto bg-white p-8 rounded-lg shadow-md">
-        <h1 className="text-2xl font-bold text-center mb-6">Iniciar Sesión</h1>
+        <h3 className="text-2xl font-bold text-center mb-6">Iniciar Sesión</h3>
         
         <form className="space-y-6">
           <div>

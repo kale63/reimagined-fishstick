@@ -12,13 +12,14 @@ export default function Signup() {
         <div className="text-center">
           <div className="flex justify-center items-center space-x-3">
             <img src={docCollabLogo} alt="DocCollab Logo" className="h-12 w-auto" />
-            <h1 className="text-3xl font-bold text-gray-900">DocCollab</h1>
+            <h2 className="text-3xl font-bold text-gray-900">Únete a DocCollab</h2>
           </div>
-          <h2 className="mt-4 text-lg text-gray-600">Crear una nueva cuenta</h2>
+          <h3 className="mt-4 text-lg text-gray-600">Crea tu cuenta y comienza a colaborar en documentos</h3>
         </div>
 
         {/* Signup Form */}
         <div className="bg-white py-8 px-6 shadow-lg rounded-lg border border-gray-200">
+          <h3 className="text-2xl font-bold text-center mb-6">Crear Cuenta</h3>
           <form className="space-y-6">
             {/* Name and Surname fields */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
