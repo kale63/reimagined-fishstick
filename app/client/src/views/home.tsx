@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 
 interface Document {
@@ -16,6 +17,7 @@ const truncateText = (text: string, maxLength: number): string => {
 };
 
 export default function Home() {
+  const navigate = useNavigate();
   const [myDocsViewType, setMyDocsViewType] = useState<'grid' | 'list'>('grid');
   const [sharedDocsViewType, setSharedDocsViewType] = useState<'grid' | 'list'>('grid');
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
@@ -61,6 +63,15 @@ export default function Home() {
   // Toggle dropdown menu
   const toggleDropdown = (id: string) => {
     setActiveDropdown(activeDropdown === id ? null : id);
+  };
+  
+  // Navigate to document editor
+  const navigateToEditor = (id: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    navigate(`/editor/${id}`);
+    setActiveDropdown(null);
   };
   
   // Click outside to close dropdowns
@@ -119,10 +130,13 @@ export default function Home() {
 
         <div className={`grid ${myDocsViewType === 'grid' ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' : 'grid-cols-1 gap-2'}`}>
           {/* Add Document Button as first item */}
-          <div className={myDocsViewType === 'grid' 
-            ? `border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center p-4 hover:border-blue-500 cursor-pointer transition-colors h-48` 
-            : `border-2 border-dashed border-gray-300 rounded-lg flex items-center p-4 hover:border-blue-500 cursor-pointer transition-colors`
-          }>
+          <div 
+            onClick={() => navigate('/editor')}
+            className={myDocsViewType === 'grid' 
+              ? `border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center p-4 hover:border-blue-500 cursor-pointer transition-colors h-48` 
+              : `border-2 border-dashed border-gray-300 rounded-lg flex items-center p-4 hover:border-blue-500 cursor-pointer transition-colors`
+            }
+          >
             <div className={`${myDocsViewType === 'grid' ? 'w-12 h-12' : 'w-8 h-8'} bg-gray-100 rounded-full flex items-center justify-center text-blue-900 ${myDocsViewType === 'grid' ? 'mb-2' : 'mr-3'}`}>
               <svg xmlns="http://www.w3.org/2000/svg" className={`${myDocsViewType === 'grid' ? 'h-6 w-6' : 'h-4 w-4'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -133,7 +147,11 @@ export default function Home() {
           
           {/* Document Cards */}
           {myDocuments.map((doc) => (
-            <div key={doc.id} className={`${myDocsViewType === 'grid' ? '' : 'flex items-center justify-between'} border rounded-lg p-4 hover:shadow-md transition-shadow`}>
+            <div 
+              key={doc.id} 
+              onClick={() => navigate(`/editor/${doc.id}`)}
+              className={`${myDocsViewType === 'grid' ? '' : 'flex items-center justify-between'} border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer`}
+            >
               {myDocsViewType === 'grid' ? (
                 // Grid View
                 <>
@@ -238,7 +256,10 @@ export default function Home() {
                     {activeDropdown === doc.id && (
                       <div ref={dropdownRef} className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 border">
                         <div className="py-1">
-                          <button className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left flex items-center">
+                          <button 
+                            onClick={(e) => navigateToEditor(doc.id, e)}
+                            className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left flex items-center"
+                          >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                             </svg>
@@ -301,7 +322,11 @@ export default function Home() {
 
         <div className={`grid ${sharedDocsViewType === 'grid' ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' : 'grid-cols-1 gap-2'}`}>
           {sharedDocuments.map((doc) => (
-            <div key={doc.id} className={`${sharedDocsViewType === 'grid' ? '' : 'flex items-center justify-between'} border rounded-lg p-4 hover:shadow-md transition-shadow`}>
+            <div 
+              key={doc.id} 
+              onClick={() => navigate(`/editor/${doc.id}`)}
+              className={`${sharedDocsViewType === 'grid' ? '' : 'flex items-center justify-between'} border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer`}
+            >
               {sharedDocsViewType === 'grid' ? (
                 // Grid View
                 <>
@@ -344,7 +369,10 @@ export default function Home() {
                         {activeDropdown === doc.id && (
                           <div ref={dropdownRef} className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 border">
                             <div className="py-1">
-                              <button className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left flex items-center">
+                              <button 
+                                onClick={(e) => navigateToEditor(doc.id, e)}
+                                className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left flex items-center"
+                              >
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                                 </svg>
