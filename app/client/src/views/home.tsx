@@ -18,28 +18,77 @@ const truncateText = (text: string, maxLength: number): string => {
 
 export default function Home() {
   const navigate = useNavigate();
+  
+  // Authentication check
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/login');
+      return;
+    }
+    
+    // Verify token with server
+    fetch('http://localhost:5000/profile', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    .then(response => {
+      if (!response.ok) {
+        localStorage.removeItem('token');
+        navigate('/login');
+      }
+    })
+    .catch(() => {
+      localStorage.removeItem('token');
+      navigate('/login');
+    });
+  }, [navigate]);
+  
   const [myDocsViewType, setMyDocsViewType] = useState<'grid' | 'list'>('grid');
   const [sharedDocsViewType, setSharedDocsViewType] = useState<'grid' | 'list'>('grid');
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [myDocuments, setMyDocuments] = useState<Document[]>([]);
+  const [currentUser, setCurrentUser] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   
-  // Mock documents data
-  const myDocuments: Document[] = [
-    {
-      id: "1",
-      type: "document",
-      title: "Plan de Marketing 2024",
-      author: "Juan Pérez",
-      lastModified: "Hace 2 horas"
-    },
-    {
-      id: "5",
-      type: "document",
-      title: "Roadmap de Producto",
-      author: "Juan Pérez",
-      lastModified: "Hace 2 semanas"
+  // Get user info and documents
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch('http://localhost:5000/profile', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.user) {
+          setCurrentUser(data.user.userId);
+          // Fetch user documents
+          return fetch(`http://localhost:5000/documents/${data.user.userId}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+        }
+      })
+      .then(response => response?.json())
+      .then(documents => {
+        if (documents) {
+          const formattedDocs = documents.map((doc: any) => ({
+            id: doc.id,
+            type: 'document',
+            title: doc.title,
+            author: 'Tú',
+            lastModified: new Date(doc.created_at).toLocaleDateString()
+          }));
+          setMyDocuments(formattedDocs);
+        }
+      })
+      .catch(console.error);
     }
-  ];
+  }, []);
   
   const sharedDocuments: Document[] = [
     {
