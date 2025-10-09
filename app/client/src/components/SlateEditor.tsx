@@ -7,6 +7,8 @@ import { withHistory } from 'slate-history';
 import type { HistoryEditor } from 'slate-history';
 import { isInTable, insertTableRow } from '../utils/editorHelpers';
 import TableWithControls from './TableWithControls';
+import { useWebSocket } from '../contexts/WebSocketContext';
+import { useAuth } from '../contexts/AuthContext';
 
 interface SlateEditorProps {
   value: Descendant[];
@@ -14,6 +16,7 @@ interface SlateEditorProps {
   readOnly?: boolean;
   placeholder?: string;
   onEditorReady?: (editor: any) => void;
+  documentId?: string; // Add documentId prop for WebSocket room
 }
 
 declare module 'slate' {
@@ -37,10 +40,41 @@ const SlateEditor: React.FC<SlateEditorProps> = ({
   onChange, 
   readOnly = false, 
   placeholder = 'Escribe tu documento aquí...',
-  onEditorReady
+  onEditorReady,
+  documentId
 }) => {
   const editor = useMemo(() => withHistory(withReact(createEditor())), []);
   const [inTable, setInTable] = useState(false);
+  const [localChange, setLocalChange] = useState(false);
+  const webSocket = useWebSocket();
+  const { user } = useAuth();
+  
+  useEffect(() => {
+    if (documentId && webSocket.isConnected) {
+      webSocket.joinDocument(documentId);
+      console.log(`Joined document room: ${documentId}`);
+    }
+  }, [documentId, webSocket.isConnected]);
+  
+  // Subscribe to document updates
+  useEffect(() => {
+    if (documentId) {
+      webSocket.onDocumentUpdated((data) => {
+        if (data.documentId === documentId && !localChange) {
+          // Apply remote changes to editor
+          console.log('Received document update:', data);
+          
+          if (data.userId !== user?.userId) {
+            onChange(data.changes);
+          }
+        }
+      });
+      
+      return () => {
+        webSocket.offEvent('document-updated');
+      };
+    }
+  }, [documentId, webSocket, onChange, localChange, user]);
   
   useEffect(() => {
     if (onEditorReady) {
@@ -49,8 +83,15 @@ const SlateEditor: React.FC<SlateEditorProps> = ({
   }, [editor, onEditorReady]);
 
   const handleChange = (newValue: Descendant[]) => {
+    setLocalChange(true);
     onChange(newValue);
     setInTable(isInTable(editor));
+    
+    if (documentId && webSocket.isConnected) {
+      webSocket.sendDocumentChange(documentId, newValue);
+    }
+    
+   setTimeout(() => setLocalChange(false), 100);
   };
 
   const renderElement = useCallback((props: any) => {

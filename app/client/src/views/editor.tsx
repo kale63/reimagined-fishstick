@@ -1,10 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import TopBar from '../components/TopBar';
 import Sidebar from '../components/Sidebar';
 import SlateEditor from '../components/SlateEditor';
 import type { Descendant } from 'slate';
 import { toggleMark, toggleBlock, insertTable } from '../utils/editorHelpers';
+import { useAuth } from '../contexts/AuthContext';
+import { DocumentService } from '../utils/api';
+import { useWebSocket } from '../contexts/WebSocketContext';
 
 interface Collaborator {
   id: string;
@@ -42,13 +45,83 @@ const initialEditorValue: Descendant[] = [
 
 export default function Editor() {
   const navigate = useNavigate();
-  const [documentTitle, setDocumentTitle] = useState('Plan de Marketing 2024');
+  const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
+  const [documentId, setDocumentId] = useState<string | null>(id || null);
+  const [documentTitle, setDocumentTitle] = useState('Documento sin título');
   const [documentContent, setDocumentContent] = useState<Descendant[]>(initialEditorValue);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [lastSaved, setLastSaved] = useState('hace 2 min');
+  const [lastSaved, setLastSaved] = useState<string>('No guardado');
   const [isLocked, setIsLocked] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
   
+  // WebSocket integration
+  const webSocket = useWebSocket();
+  
+  // Load document effect
+  useEffect(() => {
+    const loadDocument = async () => {
+      if (documentId) {
+        try {
+          setIsSaving(true);
+          const doc = await DocumentService.getDocumentById(documentId);
+          setDocumentTitle(doc.title);
+          setDocumentContent(doc.content);
+          setLastSaved(new Date(doc.updated_at).toLocaleTimeString());
+        } catch (err) {
+          console.error('Error loading document:', err);
+          setError('Error al cargar el documento');
+        } finally {
+          setIsSaving(false);
+        }
+      }
+    };
+    
+    loadDocument();
+  }, [documentId]);
+
+  // Auto-save effect
+  useEffect(() => {
+    const autoSaveInterval = setInterval(() => {
+      if (documentId && !isSaving) {
+        handleSave();
+      }
+    }, 60000); // Auto-save every minute
+    
+    return () => clearInterval(autoSaveInterval);
+  }, [documentId, isSaving, documentContent]);
+  
+  // WebSocket chat message listener
+  useEffect(() => {
+    if (documentId && webSocket.isConnected) {
+      // Setup message listener
+      webSocket.onNewMessage((data) => {
+        if (data.documentId === documentId) {
+          const newMessage: ChatMessage = {
+            id: Date.now().toString(),
+            userId: data.userId,
+            userName: data.userName,
+            message: data.message,
+            timestamp: 'ahora'
+          };
+          
+          setChatMessages(prev => [...prev, newMessage]);
+        }
+      });
+      
+      return () => {
+        webSocket.offEvent('new-message');
+      };
+    }
+  }, [documentId, webSocket.isConnected]);
+
+  // Handle title change
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setDocumentTitle(e.target.value);
+  };
+
   // Comments state
   const [comments, setComments] = useState<Comment[]>([
     {
@@ -101,7 +174,7 @@ export default function Editor() {
     }
   ]);
 
-  // Mock chat messages
+  // Chat messages state
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     {
       id: '1',
@@ -129,19 +202,53 @@ export default function Editor() {
   };
 
   const handleSave = async () => {
-    setIsSaving(true);
-    //todo save documentContent to backend
+    try {
+      setIsSaving(true);
+      setError(null);
+      
+      if (documentId) {
+        // Update existing document
+        await DocumentService.updateDocument(documentId, {
+          title: documentTitle,
+          content: documentContent
+        });
+      } else {
+        // Create new document
+        const newDocument = await DocumentService.createDocument({
+          title: documentTitle,
+          content: documentContent
+        });
+        setDocumentId(newDocument.id);
+      }
+      
+      const now = new Date();
+      setLastSaved(now.toLocaleTimeString());
+    } catch (err) {
+      console.error('Error saving document:', err);
+      setError('Error al guardar el documento');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleSendMessage = (message: string) => {
+    if (!documentId || !user) return;
+    
     const newMessage: ChatMessage = {
       id: Date.now().toString(),
-      userId: 'current-user',
-      userName: 'Tú',
+      userId: user.userId,
+      userName: user.email.split('@')[0], // Use email username as display name
       message,
       timestamp: 'ahora'
     };
+    
+    // Add message locally
     setChatMessages(prev => [...prev, newMessage]);
+    
+    // Send via WebSocket if connected
+    if (webSocket.isConnected && documentId) {
+      webSocket.sendMessage(documentId, user.userId, newMessage.userName, message);
+    }
   };
 
   const [editor, setEditor] = useState<any>(null);
@@ -396,6 +503,7 @@ export default function Editor() {
               placeholder="Comienza a escribir tu documento aquí..."
               readOnly={isLocked}
               onEditorReady={setEditor}
+              documentId={documentId ?? undefined}
             />
             {isLocked && (
               <div className="absolute inset-0 flex items-center justify-center bg-gray-800 bg-opacity-30">

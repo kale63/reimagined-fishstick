@@ -1,8 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
+import { DocumentService, Document as ApiDocument } from '../utils/api';
+import { useAuth } from '../contexts/AuthContext';
 
-interface Document {
+// Interface for displaying documents in the UI
+interface DisplayDocument {
   id: string;
   type: string;
   title: string;
@@ -28,7 +31,7 @@ export default function Home() {
     }
     
     // Verify token with server
-    fetch('http://localhost:5000/profile', {
+    fetch('http://localhost:3001/profile', {
       headers: {
         'Authorization': `Bearer ${token}`
       }
@@ -38,8 +41,13 @@ export default function Home() {
         localStorage.removeItem('token');
         navigate('/login');
       }
+      return response.json();
     })
-    .catch(() => {
+    .then(data => {
+      console.log('Auth check successful:', data);
+    })
+    .catch(error => {
+      console.error('Auth check failed:', error);
       localStorage.removeItem('token');
       navigate('/login');
     });
@@ -48,49 +56,46 @@ export default function Home() {
   const [myDocsViewType, setMyDocsViewType] = useState<'grid' | 'list'>('grid');
   const [sharedDocsViewType, setSharedDocsViewType] = useState<'grid' | 'list'>('grid');
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
-  const [myDocuments, setMyDocuments] = useState<Document[]>([]);
-  const [currentUser, setCurrentUser] = useState<string | null>(null);
+  const [myDocuments, setMyDocuments] = useState<DisplayDocument[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   
   // Get user info and documents
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      fetch('http://localhost:5000/profile', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-      .then(response => response.json())
-      .then(data => {
-        if (data.user) {
-          setCurrentUser(data.user.userId);
-          // Fetch user documents
-          return fetch(`http://localhost:5000/documents/${data.user.userId}`, {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          });
-        }
-      })
-      .then(response => response?.json())
-      .then(documents => {
-        if (documents) {
-          const formattedDocs = documents.map((doc: any) => ({
-            id: doc.id,
-            type: 'document',
-            title: doc.title,
-            author: 'Tú',
-            lastModified: new Date(doc.created_at).toLocaleDateString()
-          }));
-          setMyDocuments(formattedDocs);
-        }
-      })
-      .catch(console.error);
-    }
+    const fetchDocuments = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        // Fetch user documents using our DocumentService
+        const documents = await DocumentService.getAllDocuments();
+        
+        // Format documents for display
+        const formattedDocs = documents.map((doc: ApiDocument) => ({
+          id: doc.id,
+          type: 'document',
+          title: doc.title || 'Sin título',
+          author: 'Tú', // Since these are the user's own documents
+          lastModified: new Date(doc.updated_at).toLocaleDateString()
+        }));
+        
+        setMyDocuments(formattedDocs);
+      } catch (err) {
+        console.error('Error fetching documents:', err);
+        setError('Error al cargar los documentos');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchDocuments();
   }, []);
   
-  const sharedDocuments: Document[] = [
+  const sharedDocuments: DisplayDocument[] = [
     {
       id: "7",
       type: "document",
@@ -121,6 +126,28 @@ export default function Home() {
     }
     navigate(`/editor/${id}`);
     setActiveDropdown(null);
+  };
+  
+  // Delete document
+  const handleDeleteDocument = async (id: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    
+    if (window.confirm('¿Estás seguro de que deseas eliminar este documento? Esta acción no se puede deshacer.')) {
+      setIsLoading(true);
+      try {
+        await DocumentService.deleteDocument(id);
+        // Remove the document from the list
+        setMyDocuments(prev => prev.filter(doc => doc.id !== id));
+      } catch (err) {
+        console.error('Error deleting document:', err);
+        setError('Error al eliminar el documento');
+      } finally {
+        setIsLoading(false);
+        setActiveDropdown(null);
+      }
+    }
   };
   
   // Click outside to close dropdowns
@@ -194,8 +221,54 @@ export default function Home() {
             <span className="text-sm font-medium text-blue-900">Nuevo Documento</span>
           </div>
           
+          {/* Loading State */}
+          {isLoading && (
+            <div className="col-span-full flex justify-center items-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-700"></div>
+              <span className="ml-2 text-gray-600">Cargando documentos...</span>
+            </div>
+          )}
+          
+          {/* Error State */}
+          {error && !isLoading && (
+            <div className="col-span-full bg-red-50 text-red-700 p-4 rounded-lg border border-red-200">
+              <p className="flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                {error}
+              </p>
+              <button 
+                onClick={() => window.location.reload()} 
+                className="mt-2 text-sm underline hover:text-red-800"
+              >
+                Reintentar
+              </button>
+            </div>
+          )}
+          
+          {/* Empty State */}
+          {!isLoading && !error && myDocuments.length === 0 && (
+            <div className="col-span-full bg-gray-50 text-gray-600 p-8 rounded-lg border border-gray-200 text-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <p className="text-lg font-medium mb-2">No tienes documentos</p>
+              <p className="mb-4">Crea tu primer documento para empezar a trabajar</p>
+              <button 
+                onClick={() => navigate('/editor')} 
+                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                Nuevo Documento
+              </button>
+            </div>
+          )}
+          
           {/* Document Cards */}
-          {myDocuments.map((doc) => (
+          {!isLoading && !error && myDocuments.map((doc) => (
             <div 
               key={doc.id} 
               onClick={() => navigate(`/editor/${doc.id}`)}
@@ -248,7 +321,10 @@ export default function Home() {
                               </svg>
                               Descargar
                             </button>
-                            <button className="px-4 py-2 text-sm text-red-600 hover:bg-gray-100 w-full text-left flex items-center">
+                            <button 
+                              onClick={(e) => handleDeleteDocument(doc.id, e)}
+                              className="px-4 py-2 text-sm text-red-600 hover:bg-gray-100 w-full text-left flex items-center"
+                            >
                               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                               </svg>
@@ -326,7 +402,10 @@ export default function Home() {
                             </svg>
                             Descargar
                           </button>
-                          <button className="px-4 py-2 text-sm text-red-600 hover:bg-gray-100 w-full text-left flex items-center">
+                          <button 
+                            onClick={(e) => handleDeleteDocument(doc.id, e)}
+                            className="px-4 py-2 text-sm text-red-600 hover:bg-gray-100 w-full text-left flex items-center"
+                          >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                             </svg>

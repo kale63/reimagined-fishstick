@@ -38,7 +38,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const storedToken = localStorage.getItem('token');
     if (storedToken) {
       setToken(storedToken);
-      fetch('http://localhost:5000/profile', {
+      fetch('http://localhost:3001/profile', {
         headers: {
           'Authorization': `Bearer ${storedToken}`
         }
