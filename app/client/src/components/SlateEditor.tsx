@@ -1,5 +1,5 @@
 import React, { useMemo, useCallback, useEffect, useState } from 'react';
-import { createEditor, Transforms, Editor, Range } from 'slate';
+import { createEditor, Transforms, Editor } from 'slate';
 import type { BaseEditor, Descendant } from 'slate';
 import { Slate, Editable, withReact } from 'slate-react';
 import type { ReactEditor } from 'slate-react';
@@ -7,8 +7,6 @@ import { withHistory } from 'slate-history';
 import type { HistoryEditor } from 'slate-history';
 import { isInTable, insertTableRow } from '../utils/editorHelpers';
 import TableWithControls from './TableWithControls';
-import { useWebSocket } from '../contexts/WebSocketContext';
-import { useAuth } from '../contexts/AuthContext';
 
 interface SlateEditorProps {
   value: Descendant[];
@@ -16,7 +14,6 @@ interface SlateEditorProps {
   readOnly?: boolean;
   placeholder?: string;
   onEditorReady?: (editor: any) => void;
-  documentId?: string; // Add documentId prop for WebSocket room
 }
 
 declare module 'slate' {
@@ -40,41 +37,45 @@ const SlateEditor: React.FC<SlateEditorProps> = ({
   onChange, 
   readOnly = false, 
   placeholder = 'Escribe tu documento aquí...',
-  onEditorReady,
-  documentId
+  onEditorReady
 }) => {
-  const editor = useMemo(() => withHistory(withReact(createEditor())), []);
+  const editor = useMemo(() => {
+    console.log('🎨 [SlateEditor] Creating new editor instance');
+    return withHistory(withReact(createEditor()));
+  }, []);
+  
   const [inTable, setInTable] = useState(false);
-  const [localChange, setLocalChange] = useState(false);
-  const webSocket = useWebSocket();
-  const { user } = useAuth();
+  const [editorValue, setEditorValue] = useState<Descendant[]>(value || []);
   
+  // Debug: Log when value prop changes
   useEffect(() => {
-    if (documentId && webSocket.isConnected) {
-      webSocket.joinDocument(documentId);
-      console.log(`Joined document room: ${documentId}`);
-    }
-  }, [documentId, webSocket.isConnected]);
+    console.log('🎯 [SlateEditor] value prop changed:', {
+      type: typeof value,
+      isArray: Array.isArray(value),
+      length: Array.isArray(value) ? value.length : 'N/A'
+    });
+  }, [value]);
   
-  // Subscribe to document updates
-  useEffect(() => {
-    if (documentId) {
-      webSocket.onDocumentUpdated((data) => {
-        if (data.documentId === documentId && !localChange) {
-          // Apply remote changes to editor
-          console.log('Received document update:', data);
-          
-          if (data.userId !== user?.userId) {
-            onChange(data.changes);
-          }
-        }
-      });
-      
-      return () => {
-        webSocket.offEvent('document-updated');
-      };
+  // Ensure value is always a valid array of Descendant elements
+  const validValue = useMemo(() => {
+    if (!value || !Array.isArray(value) || value.length === 0) {
+      console.log('⚠️ [SlateEditor] Using default empty value');
+      return [
+        {
+          type: 'paragraph' as const,
+          children: [{ text: '' }],
+        },
+      ];
     }
-  }, [documentId, webSocket, onChange, localChange, user]);
+    console.log('✅ [SlateEditor] Using provided value with', value.length, 'elements');
+    return value;
+  }, [value]);
+  
+  // When the value from props changes, update internal editor value
+  useEffect(() => {
+    console.log('📝 [SlateEditor] Updating editorValue from prop');
+    setEditorValue(validValue);
+  }, [validValue]);
   
   useEffect(() => {
     if (onEditorReady) {
@@ -82,17 +83,11 @@ const SlateEditor: React.FC<SlateEditorProps> = ({
     }
   }, [editor, onEditorReady]);
 
-  const handleChange = (newValue: Descendant[]) => {
-    setLocalChange(true);
+  const handleChange = useCallback((newValue: Descendant[]) => {
+    console.log('🔄 [SlateEditor] Content changed');
+    setEditorValue(newValue);
     onChange(newValue);
-    setInTable(isInTable(editor));
-    
-    if (documentId && webSocket.isConnected) {
-      webSocket.sendDocumentChange(documentId, newValue);
-    }
-    
-   setTimeout(() => setLocalChange(false), 100);
-  };
+  }, [onChange]);
 
   const renderElement = useCallback((props: any) => {
     switch (props.element.type) {
@@ -202,7 +197,7 @@ const SlateEditor: React.FC<SlateEditorProps> = ({
 
   return (
     <div className="flex flex-col">
-      <Slate editor={editor} initialValue={value} onChange={handleChange}>
+      <Slate editor={editor} value={editorValue} onChange={handleChange}>
         <Editable
           renderElement={renderElement}
           renderLeaf={renderLeaf}

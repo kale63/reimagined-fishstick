@@ -45,6 +45,12 @@ router.get('/', authenticateToken, async (req, res) => {
  */
 router.get('/:id', authenticateToken, checkDocumentAccess, (req, res) => {
   // Document is already attached to req by checkDocumentAccess middleware
+  console.log('📄 [GET /api/documents/:id] Returning document:', {
+    id: req.document?.id,
+    title: req.document?.title,
+    hasContent: !!req.document?.content,
+    contentType: typeof req.document?.content
+  });
   res.json(req.document);
 });
 

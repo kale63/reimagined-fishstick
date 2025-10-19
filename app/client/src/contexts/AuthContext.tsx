@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
+import { getApiUrl } from '../config/api';
 
 interface User {
   userId: string;
@@ -38,7 +39,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const storedToken = localStorage.getItem('token');
     if (storedToken) {
       setToken(storedToken);
-      fetch('http://localhost:3001/profile', {
+      fetch(getApiUrl('/profile'), {
         headers: {
           'Authorization': `Bearer ${storedToken}`
         }
@@ -72,6 +73,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     localStorage.setItem('token', newToken);
     setToken(newToken);
     setUser(newUser);
+    setIsLoading(false);
   };
 
   const logout = () => {

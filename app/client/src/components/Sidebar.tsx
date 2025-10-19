@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { 
+import {
   ChatBubbleLeftIcon,
   UserGroupIcon,
-  PaperAirplaneIcon,
   ChatBubbleOvalLeftEllipsisIcon,
   ArrowRightIcon
 } from '@heroicons/react/24/outline';
+import Chat from './Chat';
 
 interface Collaborator {
   id: string;
@@ -14,14 +14,6 @@ interface Collaborator {
   color: string;
   isActive: boolean;
   role: 'editor' | 'viewer';
-}
-
-interface ChatMessage {
-  id: string;
-  userId: string;
-  userName: string;
-  message: string;
-  timestamp: string;
 }
 
 interface Comment {
@@ -35,33 +27,22 @@ interface Comment {
 
 interface SidebarProps {
   collaborators: Collaborator[];
-  chatMessages: ChatMessage[];
   comments?: Comment[];
-  onSendMessage: (message: string) => void;
   onResolveComment?: (commentId: string) => void;
   isOpen: boolean;
   onClose: () => void;
+  documentId: string | null;
 }
 
 export default function Sidebar({ 
   collaborators, 
-  chatMessages, 
   comments = [],
-  onSendMessage,
   onResolveComment,
   isOpen, 
-  onClose 
+  onClose,
+  documentId
 }: SidebarProps) {
   const [activeTab, setActiveTab] = useState<'collaborators' | 'chat' | 'comments'>('collaborators');
-  const [newMessage, setNewMessage] = useState('');
-
-  const handleSendMessage = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newMessage.trim()) {
-      onSendMessage(newMessage.trim());
-      setNewMessage('');
-    }
-  };
 
   if (!isOpen) return null;
 
@@ -215,57 +196,7 @@ export default function Sidebar({
         )}
 
         {activeTab === 'chat' && (
-          <div className="flex flex-col h-full">
-            {/* Chat messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {chatMessages.length === 0 ? (
-                <div className="text-center py-8 px-4">
-                  <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-gray-100 mb-4">
-                    <ChatBubbleLeftIcon className="h-6 w-6 text-gray-400" />
-                  </div>
-                  <p className="text-sm font-medium text-gray-700">No hay mensajes todavía</p>
-                  <p className="text-sm text-gray-500 mt-1">Sé el primero en enviar un mensaje al chat.</p>
-                </div>
-              ) : (
-                chatMessages.map((message) => (
-                <div key={message.id} className="flex space-x-3 py-2">
-                  <div className="flex-shrink-0">
-                    <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-medium shadow">
-                      {message.userName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
-                    </div>
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium text-gray-900">{message.userName}</p>
-                      <p className="text-xs text-gray-500">{message.timestamp}</p>
-                    </div>
-                    <p className="text-sm text-gray-700 mt-1 leading-relaxed">{message.message}</p>
-                  </div>
-                </div>
-              ))
-              )}
-            </div>
-
-            {/* Chat input */}
-            <div className="p-4 border-t border-gray-200 bg-white">
-              <form onSubmit={handleSendMessage} className="flex space-x-2">
-                <input
-                  type="text"
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="Escribe un mensaje..."
-                  className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm shadow-sm"
-                />
-                <button
-                  type="submit"
-                  disabled={!newMessage.trim()}
-                  className="p-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm flex items-center justify-center"
-                >
-                  <PaperAirplaneIcon className="h-5 w-5" />
-                </button>
-              </form>
-            </div>
-          </div>
+          <Chat documentId={documentId} />
         )}
       </div>
       

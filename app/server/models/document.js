@@ -1,9 +1,39 @@
 import { createClient } from "@supabase/supabase-js";
+import dotenv from "dotenv";
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 
-// Initialize Supabase client
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Load environment variables from root
+dotenv.config({ path: join(__dirname, '..', '.env') });
+
+// Initialize Supabase client - we'll create user-scoped clients in the routes
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+
+if (!supabaseUrl) {
+  console.error("ERROR: SUPABASE_URL not found!");
+}
+
+console.log('[DocumentModel] Keys available:', {
+  URL: supabaseUrl ? '✓' : '✗',
+  SERVICE_KEY: supabaseServiceKey ? `✓ (${supabaseServiceKey.substring(0, 20)}...)` : '✗',
+  ANON_KEY: supabaseAnonKey ? '✓' : '✗'
+});
+
+const selectedKey = supabaseServiceKey || supabaseAnonKey;
+const keyType = supabaseServiceKey ? 'SERVICE' : 'ANON';
+
+if (!selectedKey) {
+  console.error('ERROR: No Supabase key found!');
+}
+
+console.log(`[DocumentModel] Using ${keyType} key for Supabase client`);
+
+const supabase = createClient(supabaseUrl || '', selectedKey || '');
 
 /**
  * Document model for Slate editor documents
@@ -33,6 +63,13 @@ class DocumentModel {
       if (!data.content) throw new Error("Document content is required");
       if (!data.user_id) throw new Error("User ID is required");
       
+      console.log('💾 [DocumentModel.create] Saving document:', {
+        title: data.title,
+        contentType: typeof data.content,
+        isArray: Array.isArray(data.content),
+        contentLength: Array.isArray(data.content) ? data.content.length : 'N/A'
+      });
+      
       const { data: document, error } = await supabase
         .from('documents')
         .insert({
@@ -44,9 +81,17 @@ class DocumentModel {
         .single();
         
       if (error) throw error;
+      
+      console.log('✅ [DocumentModel.create] Document saved:', {
+        id: document.id,
+        title: document.title,
+        contentType: typeof document.content,
+        contentLength: Array.isArray(document.content) ? document.content.length : 'N/A'
+      });
+      
       return document;
     } catch (error) {
-      console.error("Error creating document:", error);
+      console.error("❌ Error creating document:", error);
       throw error;
     }
   }
@@ -58,6 +103,8 @@ class DocumentModel {
    */
   static async getById(id) {
     try {
+      console.log(`📖 [DocumentModel.getById] Loading document ${id}`);
+      
       const { data: document, error } = await supabase
         .from('documents')
         .select('*')
@@ -65,9 +112,32 @@ class DocumentModel {
         .single();
         
       if (error) throw error;
-      return document;
+      
+      // Ensure content is properly parsed as array
+      let content = document.content;
+      if (typeof content === 'string') {
+        console.log('⚠️ Content was stringified, parsing...');
+        content = JSON.parse(content);
+      }
+      if (!Array.isArray(content)) {
+        console.warn('⚠️ Content is not an array, wrapping:', typeof content);
+        content = Array.isArray(content) ? content : [{ type: 'paragraph', children: [{ text: '' }] }];
+      }
+      
+      // Return document with fixed content
+      const fixedDocument = { ...document, content };
+      
+      console.log(`📄 [DocumentModel.getById] Document loaded:`, {
+        id: fixedDocument.id,
+        title: fixedDocument.title,
+        contentType: typeof fixedDocument.content,
+        isArray: Array.isArray(fixedDocument.content),
+        contentLength: Array.isArray(fixedDocument.content) ? fixedDocument.content.length : 'N/A'
+      });
+      
+      return fixedDocument;
     } catch (error) {
-      console.error(`Error retrieving document ${id}:`, error);
+      console.error(`❌ Error retrieving document ${id}:`, error);
       throw error;
     }
   }
@@ -101,6 +171,12 @@ class DocumentModel {
    */
   static async update(id, updates) {
     try {
+      console.log(`✏️ [DocumentModel.update] Updating document ${id}:`, {
+        title: updates.title,
+        hasContent: !!updates.content,
+        contentType: updates.content ? typeof updates.content : 'undefined'
+      });
+      
       // Add updated_at timestamp
       updates.updated_at = new Date().toISOString();
       
@@ -112,9 +188,31 @@ class DocumentModel {
         .single();
         
       if (error) throw error;
-      return document;
+      
+      // Ensure content is properly parsed as array
+      let content = document.content;
+      if (typeof content === 'string') {
+        console.log('⚠️ Updated content was stringified, parsing...');
+        content = JSON.parse(content);
+      }
+      if (!Array.isArray(content)) {
+        console.warn('⚠️ Updated content is not an array, wrapping:', typeof content);
+        content = Array.isArray(content) ? content : [{ type: 'paragraph', children: [{ text: '' }] }];
+      }
+      
+      const fixedDocument = { ...document, content };
+      
+      console.log(`📝 [DocumentModel.update] Document updated:`, {
+        id: fixedDocument.id,
+        title: fixedDocument.title,
+        contentType: typeof fixedDocument.content,
+        isArray: Array.isArray(fixedDocument.content),
+        contentLength: Array.isArray(fixedDocument.content) ? fixedDocument.content.length : 'N/A'
+      });
+      
+      return fixedDocument;
     } catch (error) {
-      console.error(`Error updating document ${id}:`, error);
+      console.error(`❌ Error updating document ${id}:`, error);
       throw error;
     }
   }

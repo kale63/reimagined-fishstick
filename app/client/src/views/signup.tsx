@@ -1,9 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import docCollabLogo from '../assets/doccollab-logo.svg';
+import { getApiUrl } from '../config/api';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function Signup() {
+  const navigate = useNavigate();
+  const { login, isAuthenticated } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [shouldRedirect, setShouldRedirect] = useState(false);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -13,6 +19,13 @@ export default function Signup() {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
+
+  // Handle redirect after successful signup
+  useEffect(() => {
+    if (shouldRedirect && isAuthenticated) {
+      navigate('/home');
+    }
+  }, [shouldRedirect, isAuthenticated, navigate]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -34,7 +47,7 @@ export default function Signup() {
     setMessage('');
 
     try {
-      const response = await fetch('http://localhost:5000/register', {
+      const response = await fetch(getApiUrl('/register'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -48,14 +61,11 @@ export default function Signup() {
       const data = await response.json();
 
       if (response.ok) {
+        // Use the login function from AuthContext
+        login(data.token, data.user);
         setMessage('Cuenta creada exitosamente!');
-        setFormData({
-          firstName: '',
-          lastName: '',
-          email: '',
-          password: '',
-          confirmPassword: ''
-        });
+        // Set redirect flag to trigger redirect in useEffect
+        setShouldRedirect(true);
       } else {
         setMessage(data.error || 'Error al crear la cuenta');
       }

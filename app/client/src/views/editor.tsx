@@ -7,7 +7,7 @@ import type { Descendant } from 'slate';
 import { toggleMark, toggleBlock, insertTable } from '../utils/editorHelpers';
 import { useAuth } from '../contexts/AuthContext';
 import { DocumentService } from '../utils/api';
-import { useWebSocket } from '../contexts/WebSocketContext';
+import { initSocket } from '../utils/websocketService';
 
 interface Collaborator {
   id: string;
@@ -16,14 +16,6 @@ interface Collaborator {
   color: string;
   isActive: boolean;
   role: 'editor' | 'viewer';
-}
-
-interface ChatMessage {
-  id: string;
-  userId: string;
-  userName: string;
-  message: string;
-  timestamp: string;
 }
 
 interface Comment {
@@ -46,7 +38,7 @@ const initialEditorValue: Descendant[] = [
 export default function Editor() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const [documentId, setDocumentId] = useState<string | null>(id || null);
   const [documentTitle, setDocumentTitle] = useState('Documento sin título');
   const [documentContent, setDocumentContent] = useState<Descendant[]>(initialEditorValue);
@@ -57,8 +49,11 @@ export default function Editor() {
   const [error, setError] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   
-  // WebSocket integration
-  const webSocket = useWebSocket();
+  // Initialize WebSocket connection
+  useEffect(() => {
+    // Initialize socket with authentication token
+    initSocket(token);
+  }, [token]);
   
   // Load document effect
   useEffect(() => {
@@ -66,12 +61,27 @@ export default function Editor() {
       if (documentId) {
         try {
           setIsSaving(true);
+          console.log('📂 Loading document:', documentId);
           const doc = await DocumentService.getDocumentById(documentId);
+          console.log('📄 Document loaded:', { title: doc.title, contentType: typeof doc.content, contentLength: Array.isArray(doc.content) ? doc.content.length : 'not-array' });
+          console.log('🔍 Raw content object:', doc.content);
+          
           setDocumentTitle(doc.title);
-          setDocumentContent(doc.content);
+          
+          // Ensure content is valid Slate format
+          const validContent = Array.isArray(doc.content) && doc.content.length > 0 
+            ? doc.content 
+            : initialEditorValue;
+          
+          console.log('✅ Setting content (before state):', validContent);
+          console.log('🔍 validContent type:', typeof validContent, 'isArray:', Array.isArray(validContent));
+          console.log('🔍 First element:', validContent[0]);
+          
+          setDocumentContent(validContent);
           setLastSaved(new Date(doc.updated_at).toLocaleTimeString());
+          setIsLoaded(true);
         } catch (err) {
-          console.error('Error loading document:', err);
+          console.error('❌ Error loading document:', err);
           setError('Error al cargar el documento');
         } finally {
           setIsSaving(false);
@@ -92,30 +102,6 @@ export default function Editor() {
     
     return () => clearInterval(autoSaveInterval);
   }, [documentId, isSaving, documentContent]);
-  
-  // WebSocket chat message listener
-  useEffect(() => {
-    if (documentId && webSocket.isConnected) {
-      // Setup message listener
-      webSocket.onNewMessage((data) => {
-        if (data.documentId === documentId) {
-          const newMessage: ChatMessage = {
-            id: Date.now().toString(),
-            userId: data.userId,
-            userName: data.userName,
-            message: data.message,
-            timestamp: 'ahora'
-          };
-          
-          setChatMessages(prev => [...prev, newMessage]);
-        }
-      });
-      
-      return () => {
-        webSocket.offEvent('new-message');
-      };
-    }
-  }, [documentId, webSocket.isConnected]);
 
   // Handle title change
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -174,24 +160,6 @@ export default function Editor() {
     }
   ]);
 
-  // Chat messages state
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-    {
-      id: '1',
-      userId: '2',
-      userName: 'María García',
-      message: '¿Podemos revisar la sección de presupuesto?',
-      timestamp: 'hace 5 min'
-    },
-    {
-      id: '2',
-      userId: '1',
-      userName: 'Juan Pérez',
-      message: 'Claro, estoy revisando los números ahora',
-      timestamp: 'hace 3 min'
-    }
-  ]);
-
   const handleBack = () => {
     // Navigate back to home page
     navigate('/home');
@@ -228,26 +196,6 @@ export default function Editor() {
       setError('Error al guardar el documento');
     } finally {
       setIsSaving(false);
-    }
-  };
-
-  const handleSendMessage = (message: string) => {
-    if (!documentId || !user) return;
-    
-    const newMessage: ChatMessage = {
-      id: Date.now().toString(),
-      userId: user.userId,
-      userName: user.email.split('@')[0], // Use email username as display name
-      message,
-      timestamp: 'ahora'
-    };
-    
-    // Add message locally
-    setChatMessages(prev => [...prev, newMessage]);
-    
-    // Send via WebSocket if connected
-    if (webSocket.isConnected && documentId) {
-      webSocket.sendMessage(documentId, user.userId, newMessage.userName, message);
     }
   };
 
@@ -354,6 +302,13 @@ export default function Editor() {
         onBack={handleBack}
         onShare={handleShare}
         onSave={handleSave}
+        onTitleChange={(newTitle) => {
+          setDocumentTitle(newTitle);
+          // Optionally auto-save immediately
+          if (documentId) {
+            handleSave();
+          }
+        }}
         isSaving={isSaving}
       />
 
@@ -503,7 +458,6 @@ export default function Editor() {
               placeholder="Comienza a escribir tu documento aquí..."
               readOnly={isLocked}
               onEditorReady={setEditor}
-              documentId={documentId ?? undefined}
             />
             {isLocked && (
               <div className="absolute inset-0 flex items-center justify-center bg-gray-800 bg-opacity-30">
@@ -522,12 +476,11 @@ export default function Editor() {
         {/* Sidebar */}
         <Sidebar
           collaborators={collaborators}
-          chatMessages={chatMessages}
           comments={comments}
-          onSendMessage={handleSendMessage}
           onResolveComment={handleResolveComment}
           isOpen={isSidebarOpen}
           onClose={() => setIsSidebarOpen(false)}
+          documentId={documentId}
         />
       </div>
     </div>

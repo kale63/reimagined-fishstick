@@ -28,31 +28,45 @@ export const authenticateToken = (req, res, next) => {
  * @param {object} res - Express response object
  * @param {function} next - Express next function
  */
+import DocumentModel from '../models/document.js';
+
 export const checkDocumentAccess = async (req, res, next) => {
   try {
-    // Document model will be imported in routes
-    const DocumentModel = req.app.get('DocumentModel');
     const documentId = req.params.id;
     const userId = req.user.userId;
+    
+    console.log(`🔐 [checkDocumentAccess] Checking access for user ${userId} to document ${documentId}`);
     
     // Get document
     const document = await DocumentModel.getById(documentId);
     
+    console.log(`📄 [checkDocumentAccess] Document retrieved:`, {
+      exists: !!document,
+      id: document?.id,
+      title: document?.title,
+      owner: document?.user_id,
+      user: userId,
+      isOwner: document?.user_id === userId
+    });
+    
     // Check if document exists
     if (!document) {
+      console.warn(`❌ [checkDocumentAccess] Document ${documentId} not found`);
       return res.status(404).json({ error: "Document not found" });
     }
     
     // Check if user is owner
     if (document.user_id === userId) {
+      console.log(`✅ [checkDocumentAccess] Access granted`);
       req.document = document;
       return next();
     }
     
     // No access
+    console.warn(`❌ [checkDocumentAccess] Access denied - user is not owner`);
     return res.status(403).json({ error: "You don't have permission to access this document" });
   } catch (error) {
-    console.error("Error checking document access:", error);
+    console.error("❌ [checkDocumentAccess] Error:", error);
     return res.status(500).json({ error: "Server error" });
   }
 };

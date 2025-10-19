@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import docCollabLogo from '../assets/doccollab-logo.svg';
+import { useAuth } from '../contexts/AuthContext';
+import { getApiUrl } from '../config/api';
 
 export default function Login() {
   const [formData, setFormData] = useState({
@@ -9,7 +11,16 @@ export default function Login() {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [shouldRedirect, setShouldRedirect] = useState(false);
   const navigate = useNavigate();
+  const { login, isAuthenticated } = useAuth();
+
+  // Handle redirect after successful login
+  useEffect(() => {
+    if (shouldRedirect && isAuthenticated) {
+      navigate('/home');
+    }
+  }, [shouldRedirect, isAuthenticated, navigate]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -25,7 +36,7 @@ export default function Login() {
     setMessage('');
 
     try {
-      const response = await fetch('http://localhost:5000/login', {
+      const response = await fetch(getApiUrl('/login'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -36,13 +47,12 @@ export default function Login() {
       const data = await response.json();
 
       if (response.ok) {
-        localStorage.setItem('token', data.token);
+        // Use the login function from AuthContext
+        login(data.token, data.user);
         setMessage('Inicio de sesión exitoso!');
         
-        // Redirect to home page after a short delay
-        setTimeout(() => {
-          navigate('/home');
-        }, 500);
+        // Set redirect flag to trigger redirect in useEffect
+        setShouldRedirect(true);
       } else {
         setMessage(data.error || 'Error al iniciar sesión');
       }
