@@ -69,6 +69,8 @@ export const DocumentService = {
       hasContent: !!response.data.content,
       contentLength: Array.isArray(response.data.content) ? response.data.content.length : 'not-array'
     });
+    console.log('📦 API: Full response.data:', response.data);
+    console.log('📦 API: response.data.content:', response.data.content);
     return response.data;
   },
 

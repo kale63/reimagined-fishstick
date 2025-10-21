@@ -74,6 +74,12 @@ const SlateEditor: React.FC<SlateEditorProps> = ({
   // When the value from props changes, update internal editor value
   useEffect(() => {
     console.log('📝 [SlateEditor] Updating editorValue from prop');
+    console.log('   First element:', validValue[0]);
+    const firstElement = validValue[0] as any;
+    console.log('   First element children:', firstElement?.children);
+    if (firstElement?.children && firstElement.children.length > 0) {
+      console.log('   First child text:', firstElement.children[0]);
+    }
     setEditorValue(validValue);
   }, [validValue]);
   
@@ -197,6 +203,7 @@ const SlateEditor: React.FC<SlateEditorProps> = ({
 
   return (
     <div className="flex flex-col">
+      {(() => { console.log('🎨 [SlateEditor] Rendering with editorValue:', editorValue); return null; })()}
       <Slate editor={editor} value={editorValue} onChange={handleChange}>
         <Editable
           renderElement={renderElement}

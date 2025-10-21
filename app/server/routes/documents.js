@@ -49,8 +49,13 @@ router.get('/:id', authenticateToken, checkDocumentAccess, (req, res) => {
     id: req.document?.id,
     title: req.document?.title,
     hasContent: !!req.document?.content,
-    contentType: typeof req.document?.content
+    contentType: typeof req.document?.content,
+    contentLength: Array.isArray(req.document?.content) ? req.document.content.length : 'N/A'
   });
+  
+  // Log the actual content being sent
+  console.log('📦 [GET /api/documents/:id] Full document object:', JSON.stringify(req.document, null, 2).substring(0, 500));
+  
   res.json(req.document);
 });
 

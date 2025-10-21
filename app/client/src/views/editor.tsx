@@ -49,6 +49,14 @@ export default function Editor() {
   const [error, setError] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   
+  // Sync route param to documentId state
+  useEffect(() => {
+    console.log('🔄 Route param changed, id =', id);
+    if (id) {
+      setDocumentId(id);
+    }
+  }, [id]);
+  
   // Initialize WebSocket connection
   useEffect(() => {
     // Initialize socket with authentication token
@@ -86,6 +94,8 @@ export default function Editor() {
         } finally {
           setIsSaving(false);
         }
+      } else {
+        console.log('⏭️ documentId is not set, skipping load');
       }
     };
     
